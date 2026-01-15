@@ -1,197 +1,76 @@
 # AGENTS.md
 
-Guidance for AI agents integrating Speak-Turbo for text-to-speech output.
+Guidance for AI agents working on the Speak-Turbo codebase.
 
-## Overview
+> **Using speakturbo?** See [SKILL.md](SKILL.md) instead.
 
-Speak-Turbo provides ultra-low-latency local TTS. Use it when you need to speak to users without blocking on cloud APIs or waiting for model loading.
+## Project Structure
 
-**Key properties:**
-- ~90ms to first audio (daemon warm)
-- Fully local — no internet required after install
-- 8 built-in voices (no voice cloning)
-- Auto-managed daemon — just call the CLI
+```
+speakturbo/              # Python daemon
+├── daemon_streaming.py  # Main FastAPI server (port 7125)
+├── cli.py               # Python CLI fallback
+└── tests/               # pytest tests
 
-## Basic Usage
-
-```bash
-# Speak text (plays through default audio output)
-speakturbo "Hello, I'm ready to help you."
-
-# Different voice
-speakturbo "This is a male voice" -v marius
-
-# Save to file instead of playing
-speakturbo "Saved audio" -o /tmp/output.wav
-
-# Quiet mode (suppress status messages, still plays audio)
-speakturbo "Quiet" -q
-
-# Read from stdin (useful for long text)
-cat article.txt | speakturbo
+speakturbo-cli/          # Rust CLI (primary interface)
+├── Cargo.toml
+└── src/main.rs          # Streaming HTTP client + audio playback
 ```
 
-## Voice Selection
+## Architecture
 
-| Voice | Gender | Best For |
-|-------|--------|----------|
-| `alba` | Female | Default, neutral, clear |
-| `marius` | Male | Authoritative, clear |
-| `javert` | Male | Deeper, formal |
-| `jean` | Male | Warm, conversational |
-| `fantine` | Female | Soft, expressive |
-| `cosette` | Female | Young, bright |
-| `eponine` | Female | Warm, mid-range |
-| `azelma` | Female | Clear, neutral |
-
-```bash
-# Example voice selection
-speakturbo "Important announcement" -v marius
-speakturbo "Let me explain this gently" -v fantine
+```
+User → speakturbo (Rust) → HTTP GET /tts → daemon (Python) → pocket-tts → audio stream
+                                              ↓
+                                         Model in memory (TTSModel)
+                                         Voice states cached (LRU)
 ```
 
-## Daemon Management
+The Rust CLI exists purely for latency — it starts in ~1ms vs Python's ~100ms interpreter startup.
 
-The daemon starts automatically on first use. You rarely need to manage it manually.
-
-```bash
-# Check if daemon is running and healthy
-curl -s http://127.0.0.1:7125/health
-# Returns: {"status":"ready","voices":[...],"idle_timeout_mins":60}
-
-# If daemon seems stuck, restart it
-pkill -f "daemon_streaming"
-speakturbo "Daemon restarted"  # Auto-restarts
-
-# View daemon logs
-cat /tmp/speakturbo.log
-```
-
-**Auto-shutdown:** The daemon automatically shuts down after 1 hour of inactivity to free memory.
-
-## Error Handling
+## Development
 
 ```bash
-# Pattern: Check exit code
-if speakturbo "Hello" 2>/dev/null; then
-    echo "Speech succeeded"
-else
-    echo "Speech failed - daemon may be down"
-    # Retry once
-    pkill -f "daemon_streaming" 2>/dev/null
-    sleep 1
-    speakturbo "Retrying"
-fi
+# Python daemon
+pip install -e .
+python -m speakturbo.daemon_streaming
+
+# Rust CLI
+cd speakturbo-cli
+cargo build --release
+./target/release/speakturbo "test"
+
+# Tests
+pytest speakturbo/tests/ -v
 ```
 
-**Exit codes:**
-| Code | Meaning |
+## Key Files
+
+| File | Purpose |
 |------|---------|
-| 0 | Success |
-| 1 | Error (daemon down, invalid args, etc.) |
+| `daemon_streaming.py` | FastAPI app, `/health` and `/tts` endpoints |
+| `speakturbo-cli/src/main.rs` | HTTP streaming, audio buffer, rodio playback |
+| `SKILL.md` | User-facing documentation |
 
-## Performance Expectations
+## Design Decisions
 
-| Scenario | Time to First Sound |
-|----------|---------------------|
-| Daemon warm (typical) | ~90ms |
-| Daemon cold (first call) | 2-5 seconds |
-| After 1hr idle | 2-5 seconds (daemon auto-stopped) |
+1. **Daemon architecture**: Model loading is slow (~3s). Keep it resident.
+2. **Rust CLI**: Python startup adds 100ms. Rust adds ~1ms.
+3. **HTTP streaming**: Start playback before generation completes.
+4. **Auto-shutdown**: Free memory after 1hr idle. Users don't manage daemons.
+5. **No voice cloning**: Simplicity. Use `speak` (Chatterbox) for that.
 
-**Tip:** If response time is critical, send a health check to keep the daemon warm:
-```bash
-curl -s http://127.0.0.1:7125/health > /dev/null
+## API
+
+```
+GET /health → {"status": "ready", "voices": [...]}
+GET /tts?text=Hello&voice=alba → audio/wav (streaming)
 ```
 
-## Long Text
+## Common Tasks
 
-Speak-Turbo streams audio — it begins speaking before the full text is processed. Long inputs work fine:
+**Add a voice**: Voices come from pocket-tts. Update `VOICES` list in `daemon_streaming.py`.
 
-```bash
-# This works and streams as it generates
-speakturbo "$(cat long_article.txt)"
+**Change port**: Update `DAEMON_URL` in `main.rs` and port in `daemon_streaming.py`.
 
-# Or via stdin
-cat long_article.txt | speakturbo
-```
-
-## Integration Patterns
-
-### Pattern 1: Fire and Forget
-```bash
-# Speak in background, don't block
-speakturbo "Processing your request" &
-# ... do other work ...
-```
-
-### Pattern 2: Sequential Speech
-```bash
-# Speak multiple messages in order
-speakturbo "First, let me check the data."
-speakturbo "Found 42 results."
-speakturbo "Here's what I found."
-```
-
-### Pattern 3: Conditional Voice
-```bash
-# Use different voices for different purposes
-announce() { speakturbo "$1" -v marius; }
-explain() { speakturbo "$1" -v alba; }
-warn() { speakturbo "$1" -v javert; }
-
-announce "Attention please"
-explain "Let me walk you through this"
-warn "Warning: this action cannot be undone"
-```
-
-### Pattern 4: Status Updates
-```bash
-# Quick status without verbose output
-speakturbo -q "Done"
-```
-
-## What Speak-Turbo Is NOT For
-
-- **Voice cloning** — Use `speak` (Chatterbox) skill instead
-- **Emotion tags** — No support for `[laugh]`, `[sigh]`, etc.
-- **Non-English** — English only
-- **Real-time conversation** — Latency is good but not quite real-time
-
-## HTTP API (Advanced)
-
-For direct integration without the CLI:
-
-```bash
-# Stream TTS audio
-curl "http://127.0.0.1:7125/tts?text=Hello%20world&voice=alba" \
-  --output - | afplay -  # macOS
-  
-# Health check
-curl http://127.0.0.1:7125/health
-```
-
-## Troubleshooting for Agents
-
-| Problem | Solution |
-|---------|----------|
-| "Daemon not running?" error | `pkill -f daemon_streaming; sleep 2; speakturbo "test"` |
-| No audio output | Check system audio: `speakturbo "test" -o /tmp/t.wav && afplay /tmp/t.wav` |
-| Slow first call | Normal — model loading. Subsequent calls fast. |
-| Port 7125 in use | `lsof -i :7125` to find conflict, then `pkill -f daemon_streaming` |
-
-## Quick Reference
-
-```bash
-# Basic
-speakturbo "text"           # Speak with default voice
-speakturbo "text" -v NAME   # Speak with specific voice
-speakturbo "text" -o FILE   # Save to WAV file
-speakturbo "text" -q        # Quiet mode
-
-# Management
-curl http://127.0.0.1:7125/health  # Check daemon
-pkill -f "daemon_streaming"         # Stop daemon
-speakturbo --list-voices            # List voices
-
-# Voices: alba, marius, javert, jean, fantine, cosette, eponine, azelma
-```
+**Reduce latency**: The bottleneck is pocket-tts generation (~40ms per frame). CLI/daemon overhead is <10ms.
