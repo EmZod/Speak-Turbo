@@ -10,8 +10,10 @@ use std::time::{Duration, Instant};
 const DAEMON_URL: &str = "http://127.0.0.1:7125";
 const SAMPLE_RATE: u32 = 24000;
 
-// AGGRESSIVE: Only 80ms buffer (2 audio chunks worth)
-const MIN_BUFFER_MS: u32 = 80;
+// Buffer size: 150ms provides stable playback without perceptible latency
+const MIN_BUFFER_MS: u32 = 150;
+// Fade-in duration: 10ms (240 samples) eliminates startup transients
+const FADE_IN_SAMPLES: usize = 240;
 const MIN_BUFFER_SAMPLES: usize = (SAMPLE_RATE * MIN_BUFFER_MS / 1000) as usize;
 
 #[derive(Parser)]
@@ -141,7 +143,7 @@ fn stream_audio(response: ureq::Response, start: Instant, quiet: bool) -> Result
     }
 
     // Play!
-    let source = StreamSource { buffer };
+    let source = StreamSource { buffer, samples_emitted: 0 };
     sink.append(source);
     sink.sleep_until_end();
 
@@ -198,6 +200,7 @@ impl LockFreeBuffer {
 
 struct StreamSource {
     buffer: Arc<LockFreeBuffer>,
+    samples_emitted: usize,
 }
 
 impl Iterator for StreamSource {
@@ -206,7 +209,15 @@ impl Iterator for StreamSource {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(sample) = self.buffer.pop() {
-                return Some(sample);
+                // Apply fade-in to first FADE_IN_SAMPLES to eliminate startup transients
+                let output = if self.samples_emitted < FADE_IN_SAMPLES {
+                    let factor = self.samples_emitted as f32 / FADE_IN_SAMPLES as f32;
+                    (sample as f32 * factor) as i16
+                } else {
+                    sample
+                };
+                self.samples_emitted += 1;
+                return Some(output);
             }
             
             if self.buffer.is_done() {
