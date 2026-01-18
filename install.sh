@@ -15,7 +15,7 @@ esac
 
 # Install Python dependencies
 echo "→ Installing Python dependencies..."
-pip install --quiet pocket-tts uvicorn fastapi
+pip install --quiet pocket-tts uvicorn fastapi "python-dateutil>=2.7"
 
 # Create bin directory
 mkdir -p ~/.local/bin
