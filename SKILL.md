@@ -39,19 +39,16 @@ speakturbo "Now I'm fast"  # ~90ms
 # Basic - plays immediately (default voice: alba)
 speakturbo "Hello world"
 
-# Different voice (male: marius, javert, jean)
-speakturbo "Hello" -v marius
-
 # Save to file (no audio playback)
 speakturbo "Hello" -o output.wav
 
-# Combine voice + output
-speakturbo "Goodbye" -v jean -o goodbye.wav
+# Save to specific file
+speakturbo "Goodbye" -o goodbye.wav
 
 # Quiet mode (suppress status messages, still plays audio)
 speakturbo "Hello" -q
 
-# List voices
+# List available voices
 speakturbo --list-voices
 ```
 
