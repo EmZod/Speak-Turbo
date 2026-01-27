@@ -1,6 +1,6 @@
 ---
 name: speakturbo-tts
-description: Ultra-fast TTS with ~90ms latency. Local text-to-speech with 8 built-in voices. Use when users need instant audio, voice output, or speech synthesis with standard voices. For custom voice cloning, use the `speak` skill instead.
+description: Give your agent the ability to speak to you real-time. Talk to your Claude! Ultra-fast TTS with ~90ms latency. 8 built-in voices, instant audio responses. For voice cloning, use the `speak` skill instead.
 ---
 
 # speakturbo - Ultra-Fast TTS
