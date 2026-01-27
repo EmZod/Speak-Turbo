@@ -5,14 +5,7 @@ description: Give your agent the ability to speak to you real-time. Talk to your
 
 # speakturbo - Talk to your Claude!
 
-Give your agent the ability to speak to you real-time. Ultra-fast text-to-speech, voice output, and audio generation with ~90ms latency.
-Give your agent the ability to speak to you real-time. Ultra-fast TTS with ~90ms latency.
-
-> **Need custom voices (Morgan Freeman, celebrities)?** speakturbo only has 8 built-in voices. Use the `speak` skill instead:
-> ```bash
-> speak "Your text" --voice ~/.chatter/voices/morgan_freeman.wav
-> ```
-> Voice files are 10-30 second WAV samples in `~/.chatter/voices/`. See the `speak` skill for setup.
+Give your agent the ability to speak to you real-time. Ultra-fast text-to-speech with ~90ms latency and 8 built-in voices.
 
 ## Quick Start
 
