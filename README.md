@@ -6,7 +6,15 @@ Ultra-fast local TTS. ~90ms to first sound.
 speakturbo "Hello world"
 ```
 
-## Install
+## Install as Agent Skill
+
+Add this skill to Claude Code, Cursor, Windsurf, and other AI agents:
+
+```bash
+npx skills add EmZod/Speak-Turbo
+```
+
+## Install CLI
 
 ```bash
 pip install pocket-tts uvicorn fastapi
