@@ -3,9 +3,9 @@ name: speakturbo-tts
 description: Give your agent the ability to speak to you real-time. Talk to your Claude! Ultra-fast TTS with ~90ms latency. 8 built-in voices, instant audio responses. For voice cloning, use the `speak` skill instead.
 ---
 
-# speakturbo - Ultra-Fast TTS
+# speakturbo - Talk to your Claude!
 
-Blazingly fast text-to-speech with streaming playback. Audio starts in ~90ms.
+Give your agent the ability to speak to you real-time. Ultra-fast TTS with ~90ms latency.
 
 > **Need custom voices (Morgan Freeman, celebrities)?** speakturbo only has 8 built-in voices. Use the `speak` skill instead:
 > ```bash
