@@ -1,6 +1,6 @@
 ---
-name: speakturbo
-description: Ultra-fast text-to-speech with 8 built-in voices only. ~90ms to first sound. Cannot clone custom voices. Use when users need instant audio with standard voices. For custom voice cloning (Morgan Freeman, celebrities, personal voices), use the `speak` skill instead.
+name: speakturbo-tts
+description: Ultra-fast TTS with ~90ms latency. Local text-to-speech with 8 built-in voices. Use when users need instant audio, voice output, or speech synthesis with standard voices. For custom voice cloning, use the `speak` skill instead.
 ---
 
 # speakturbo - Ultra-Fast TTS
