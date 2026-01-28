@@ -11,7 +11,7 @@ import time
 from typing import Optional
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from pocket_tts import TTSModel
@@ -68,6 +68,15 @@ def idle_monitor():
 
 
 app = FastAPI(title="speakturbo")
+
+
+# DNS rebinding protection - only allow localhost
+@app.middleware("http")
+async def validate_host(request: Request, call_next):
+    host = request.headers.get("host", "").split(":")[0]
+    if host not in {"127.0.0.1", "localhost"}:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return await call_next(request)
 
 
 @app.get("/health")
