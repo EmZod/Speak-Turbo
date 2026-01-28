@@ -12,7 +12,7 @@ from typing import Optional
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 
 from pocket_tts import TTSModel
 
@@ -75,7 +75,7 @@ app = FastAPI(title="speakturbo")
 async def validate_host(request: Request, call_next):
     host = request.headers.get("host", "").split(":")[0]
     if host not in {"127.0.0.1", "localhost"}:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        return JSONResponse(status_code=403, content={"detail": "Forbidden"})
     return await call_next(request)
 
 
