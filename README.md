@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <strong>~90ms to first sound. Local. Private. Fast.</strong>
+  <strong>~90ms to first sound. Realistic. Local. Private. Fast.</strong>
 </p>
 
 <p align="center">
