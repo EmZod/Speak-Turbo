@@ -1,5 +1,21 @@
-<h1 align="center">speakturbo</h1>
+<p align="center">
+<pre>
+███████╗██████╗ ███████╗ █████╗ ██╗  ██╗ ████████╗██╗   ██╗██████╗ ██████╗  ██████╗ 
+██╔════╝██╔══██╗██╔════╝██╔══██╗██║ ██╔╝ ╚══██╔══╝██║   ██║██╔══██╗██╔══██╗██╔═══██╗
+███████╗██████╔╝█████╗  ███████║█████╔╝     ██║   ██║   ██║██████╔╝██████╔╝██║   ██║
+╚════██║██╔═══╝ ██╔══╝  ██╔══██║██╔═██╗     ██║   ██║   ██║██╔══██╗██╔══██╗██║   ██║
+███████║██║     ███████╗██║  ██║██║  ██╗    ██║   ╚██████╔╝██║  ██║██████╔╝╚██████╔╝
+╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝    ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚═════╝  ╚═════╝ 
+</pre>
+</p>
+
 <h3 align="center">Talk to your Claude.</h3>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
+  <img src="https://img.shields.io/badge/latency-~90ms-brightgreen.svg" alt="Latency">
+  <img src="https://img.shields.io/badge/platform-Apple%20Silicon-orange.svg" alt="Platform">
+</p>
 
 <p align="center">
   <strong>~90ms to first sound. Local. Private. Fast.</strong>
