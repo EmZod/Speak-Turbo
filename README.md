@@ -10,6 +10,7 @@
 <h3 align="center">Talk to your Claude.</h3>
 
 <p align="center">
+  <a href="https://speakturbo-site.vercel.app"><img src="https://img.shields.io/badge/website-speakturbo-f97316.svg" alt="Website"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/latency-~90ms-brightgreen.svg" alt="Latency">
   <img src="https://img.shields.io/badge/platform-Apple%20Silicon-orange.svg" alt="Platform">
