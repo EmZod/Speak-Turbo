@@ -71,6 +71,7 @@ pytest speakturbo/tests/ -v
 4. **Auto-shutdown**: Free memory after 1hr idle. Users don't manage daemons.
 5. **No voice cloning**: Simplicity. Use `speak` (Chatterbox) for that.
 6. **Localhost-only**: Daemon binds to 127.0.0.1 with DNS rebinding protection.
+7. **Output path allowlist**: `-o` flag restricted to `/tmp`, `$PWD`, `~/.speakturbo/` by default. `--allow-dir` for one-off overrides, `~/.speakturbo/config` for permanent additions.
 
 ## API
 

@@ -30,12 +30,159 @@ struct Args {
     #[arg(short, long)]
     output: Option<String>,
 
+    /// Allow output to this directory (repeatable)
+    #[arg(long)]
+    allow_dir: Vec<String>,
+
     #[arg(long)]
     list_voices: bool,
     
     /// Quiet mode - minimal output
     #[arg(short, long)]
     quiet: bool,
+}
+
+/// Resolve a path like Python's os.path.realpath: canonicalize the deepest
+/// existing ancestor, keep non-existent tail components as-is.
+/// This avoids the std::fs::canonicalize pitfall (fails if file doesn't exist)
+/// while still resolving symlinks (critical: macOS /tmp -> /private/tmp).
+fn resolve_path(raw: &str) -> std::path::PathBuf {
+    use std::path::{Path, PathBuf};
+
+    let path = if Path::new(raw).is_relative() {
+        std::env::current_dir().unwrap_or_default().join(raw)
+    } else {
+        PathBuf::from(raw)
+    };
+
+    // Fast path: file already exists, canonicalize the whole thing
+    if let Ok(p) = std::fs::canonicalize(&path) {
+        return p;
+    }
+
+    // Walk up to find the deepest existing ancestor
+    let mut tail: Vec<std::ffi::OsString> = Vec::new();
+    let mut ancestor = path.clone();
+    loop {
+        if ancestor.exists() {
+            let base = std::fs::canonicalize(&ancestor).unwrap_or(ancestor);
+            let mut result = base;
+            for component in tail.into_iter().rev() {
+                result = result.join(component);
+            }
+            return result;
+        }
+        match ancestor.file_name() {
+            Some(name) => {
+                tail.push(name.to_os_string());
+                ancestor = ancestor
+                    .parent()
+                    .map(|p| p.to_path_buf())
+                    .unwrap_or(ancestor);
+            }
+            None => break, // At root
+        }
+    }
+
+    path // Fallback (shouldn't happen — root always exists)
+}
+
+fn load_allowed_dirs() -> Vec<std::path::PathBuf> {
+    let Some(home) = dirs::home_dir() else {
+        return vec![];
+    };
+    let config_path = home.join(".speakturbo").join("config");
+    let Ok(contents) = std::fs::read_to_string(&config_path) else {
+        return vec![];
+    };
+
+    contents
+        .lines()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .filter_map(|l| {
+            // Expand ~ to home dir (like Python's os.path.expanduser)
+            let expanded = if l.starts_with("~/") {
+                home.join(&l[2..])
+            } else if l == "~" {
+                home.clone()
+            } else {
+                std::path::PathBuf::from(l)
+            };
+            if expanded.is_absolute() {
+                Some(expanded)
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn validate_output_path(output: &str, extra_allowed: &[String]) -> Result<std::path::PathBuf> {
+    use std::path::{Path, PathBuf};
+
+    let resolved = resolve_path(output);
+
+    let mut allowed: Vec<PathBuf> = vec![
+        PathBuf::from("/tmp"),
+        PathBuf::from("/var/tmp"),
+        std::env::temp_dir(),
+    ];
+
+    if let Ok(cwd) = std::env::current_dir() {
+        allowed.push(cwd);
+    }
+    if let Some(home) = dirs::home_dir() {
+        allowed.push(home.join(".speakturbo"));
+    }
+
+    allowed.extend(load_allowed_dirs());
+
+    for dir in extra_allowed {
+        allowed.push(resolve_path(dir));
+    }
+
+    // Canonicalize ALL allowlist entries (critical for macOS: /tmp -> /private/tmp)
+    let allowed: Vec<PathBuf> = allowed
+        .into_iter()
+        .map(|d| std::fs::canonicalize(&d).unwrap_or(d))
+        .collect();
+
+    for allowed_dir in &allowed {
+        // PathBuf::starts_with is component-aware: /tmp won't match /tmpevil
+        if resolved.starts_with(allowed_dir) {
+            return Ok(resolved);
+        }
+    }
+
+    let parent_dir = resolved.parent().unwrap_or(Path::new("."));
+    let allowed_display: Vec<String> = allowed
+        .iter()
+        .map(|p| format!("    {}", p.display()))
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+
+    eprintln!("Error: Output path is outside allowed directories.\n");
+    eprintln!("  Path: {}\n", resolved.display());
+    eprintln!("Allowed directories:");
+    for line in &allowed_display {
+        eprintln!("{}", line);
+    }
+    eprintln!();
+    eprintln!("To allow this directory for this command:");
+    eprintln!(
+        "  speakturbo \"text\" -o {} --allow-dir {}\n",
+        output,
+        parent_dir.display()
+    );
+    eprintln!("To allow it permanently, add to ~/.speakturbo/config:");
+    eprintln!(
+        "  mkdir -p ~/.speakturbo && echo \"{}\" >> ~/.speakturbo/config",
+        parent_dir.display()
+    );
+
+    std::process::exit(1);
 }
 
 fn main() -> Result<()> {
@@ -61,6 +208,13 @@ fn main() -> Result<()> {
         std::process::exit(1);
     }
 
+    // Validate output path BEFORE HTTP request (fail fast)
+    let resolved_output = if let Some(ref output_path) = args.output {
+        Some(validate_output_path(output_path, &args.allow_dir)?)
+    } else {
+        None
+    };
+
     let url = format!("{}/tts?text={}&voice={}", 
         DAEMON_URL, 
         urlencoding::encode(&text),
@@ -72,11 +226,11 @@ fn main() -> Result<()> {
         .call()
         .context("Daemon not running?")?;
 
-    if let Some(output_path) = args.output {
-        let mut file = std::fs::File::create(&output_path)?;
+    if let Some(resolved) = resolved_output {
+        let mut file = std::fs::File::create(&resolved)?;
         std::io::copy(&mut response.into_reader(), &mut file)?;
         if !args.quiet {
-            eprintln!("Saved: {}", output_path);
+            eprintln!("Saved: {}", resolved.display());
         }
     } else {
         stream_audio(response, start, args.quiet)?;

@@ -31,6 +31,13 @@ PID_FILE = Path.home() / ".speakturbo" / "daemon.pid"
 
 VOICES = ["alba", "marius", "javert", "jean", "fantine", "cosette", "eponine", "azelma"]
 
+# Default directories where -o output is allowed without --allow-dir
+DEFAULT_ALLOWED_DIRS = [
+    "/tmp",
+    "/var/tmp",
+    tempfile.gettempdir(),
+]
+
 
 def is_daemon_running() -> bool:
     """Check if daemon is running."""
@@ -114,7 +121,65 @@ def list_voices():
         print(f"  - {voice}")
 
 
-def generate_speech(text: str, voice: str = "alba", output: str = None, play: bool = True):
+def load_allowed_dirs() -> list[str]:
+    """Load user-configured allowed directories from ~/.speakturbo/config."""
+    config_file = Path.home() / ".speakturbo" / "config"
+    custom_dirs = []
+    if config_file.exists():
+        for line in config_file.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                expanded = os.path.expanduser(line)
+                if os.path.isabs(expanded):
+                    custom_dirs.append(expanded)
+    return custom_dirs
+
+
+def validate_output_path(output: str, extra_allowed: list[str] | None = None) -> str:
+    """Validate output path is within allowed directories.
+
+    Returns the resolved absolute path if allowed.
+    Exits with a clear error message if not.
+    """
+    resolved = os.path.realpath(os.path.expanduser(output))
+
+    allowed = list(DEFAULT_ALLOWED_DIRS)
+    allowed.append(os.getcwd())
+    allowed.append(str(Path.home() / ".speakturbo"))
+    allowed.extend(load_allowed_dirs())
+    if extra_allowed:
+        allowed.extend(extra_allowed)
+
+    # Normalize ALL paths once (realpath resolves symlinks + makes absolute)
+    allowed = [os.path.realpath(os.path.expanduser(d)) for d in allowed]
+
+    for allowed_dir in allowed:
+        if resolved.startswith(allowed_dir + os.sep) or resolved == allowed_dir:
+            return resolved
+
+    # Build error message that tells the agent exactly what to do
+    allowed_display = "\n".join(f"    {d}" for d in sorted(set(allowed)))
+    parent_dir = os.path.dirname(resolved)
+    print(
+        f"Error: Output path is outside allowed directories.\n"
+        f"\n"
+        f"  Path: {resolved}\n"
+        f"\n"
+        f"Allowed directories:\n"
+        f"{allowed_display}\n"
+        f"\n"
+        f"To allow this directory for this command:\n"
+        f"  speakturbo \"text\" -o {output} --allow-dir {parent_dir}\n"
+        f"\n"
+        f"To allow it permanently, add to ~/.speakturbo/config:\n"
+        f"  mkdir -p ~/.speakturbo && echo \"{parent_dir}\" >> ~/.speakturbo/config",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+
+def generate_speech(text: str, voice: str = "alba", output: str = None,
+                    play: bool = True, allowed_dirs: list[str] | None = None):
     """Generate speech from text."""
     # Ensure daemon is running
     if not is_daemon_running():
@@ -131,6 +196,10 @@ def generate_speech(text: str, voice: str = "alba", output: str = None, play: bo
     if not text or not text.strip():
         print("Error: Text cannot be empty.", file=sys.stderr)
         sys.exit(1)
+    
+    # Validate output path BEFORE HTTP request (fail fast)
+    if output:
+        output = validate_output_path(output, extra_allowed=allowed_dirs)
     
     # Generate audio
     try:
@@ -202,6 +271,8 @@ Examples:
     parser.add_argument("text", nargs="?", help="Text to speak")
     parser.add_argument("-v", "--voice", default="alba", help="Voice to use (default: alba)")
     parser.add_argument("-o", "--output", help="Output WAV file (default: play audio)")
+    parser.add_argument("--allow-dir", action="append", default=None,
+                        help="Allow output to this directory (repeatable)")
     parser.add_argument("--no-play", action="store_true", help="Don't play audio (only with -o)")
     parser.add_argument("--list-voices", action="store_true", help="List available voices")
     parser.add_argument("--version", action="version", version=f"speakturbo {__version__}")
@@ -245,6 +316,7 @@ Examples:
         voice=args.voice,
         output=args.output,
         play=not args.no_play,
+        allowed_dirs=args.allow_dir,
     )
 
 
